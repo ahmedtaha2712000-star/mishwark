@@ -36,6 +36,25 @@ jobs:
         run: |
           PASSENGER=$(find source -type f -path "*/passenger_app/pubspec.yaml" -print -quit | xargs dirname)
           echo "Passenger directory: $PASSENGER"
+python3 - <<'PY'
+from pathlib import Path
+
+p = Path("source/apps/passenger_app/lib/screens/trip_flow_screen.dart")
+s = p.read_text()
+
+s = s.replace(
+    "if(status=='COMPLETED')... [",
+    "if(status=='COMPLETED') ...["
+)
+
+s = s.replace(
+    "child:const Text('تقييم 5 نجوم'))]])));}",
+    "child:const Text('تقييم 5 نجوم'))]]))));}"
+)
+
+p.write_text(s)
+print("TripFlowScreen syntax fix applied")
+PY
 
           cd "$PASSENGER"
           flutter create --platforms=android .

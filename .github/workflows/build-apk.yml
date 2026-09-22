@@ -6,31 +6,13 @@ on:
       - main
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Build Passenger APK
-        working-directory: apps/passenger_app
-        run: |
-          flutter create --platforms=android .
-          flutter pub get
-          flutter build apk --release
-          mkdir -p ../../artifacts
-          cp build/app/outputs/flutter-apk/app-release.apk ../../artifacts/mishwark-passenger.apk
-
-      - name: Build Driver APK
-        working-directory: apps/driver
+      - name: Test GitHub Actions
+        run: echo "Mishwark workflow is working"

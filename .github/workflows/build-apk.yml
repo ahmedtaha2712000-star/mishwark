@@ -26,58 +26,30 @@ jobs:
       - name: Extract project
         run: |
           mkdir -p source
-          ZIP=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
-          echo "ZIP found: $ZIP"
-          unzip -q "$ZIP" -d source
-          echo "Project files:"
-          find source -maxdepth 4 -name pubspec.yaml -print
+          unzip -q mishwark_release_candidate_1_0-1-fixed.zip -d source
+          find source -name pubspec.yaml -print
 
       - name: Build Passenger APK
         run: |
           PASSENGER=$(find source -type f -path "*/passenger_app/pubspec.yaml" -print -quit | xargs dirname)
           echo "Passenger directory: $PASSENGER"
-python3 - <<'PY'
-from pathlib import Path
-
-p = Path("source/apps/passenger_app/lib/screens/trip_flow_screen.dart")
-s = p.read_text()
-
-s = s.replace(
-    "if(status=='COMPLETED')... [",
-    "if(status=='COMPLETED') ...["
-)
-
-s = s.replace(
-    "child:const Text('تقييم 5 نجوم'))]])));}",
-    "child:const Text('تقييم 5 نجوم'))]]))));}"
-)
-
-p.write_text(s)
-print("TripFlowScreen syntax fix applied")
-PY
-
           cd "$PASSENGER"
           flutter create --platforms=android .
           flutter pub get
           flutter build apk --release
-
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp build/app/outputs/flutter-apk/app-release.apk \
-            "$GITHUB_WORKSPACE/artifacts/mishwark-passenger.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/artifacts/mishwark-passenger.apk"
 
       - name: Build Driver APK
         run: |
           DRIVER=$(find source -type f -path "*/driver_app/pubspec.yaml" -print -quit | xargs dirname)
           echo "Driver directory: $DRIVER"
-
           cd "$DRIVER"
           flutter create --platforms=android .
           flutter pub get
           flutter build apk --release
-
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp build/app/outputs/flutter-apk/app-release.apk \
-            "$GITHUB_WORKSPACE/artifacts/mishwark-driver.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/artifacts/mishwark-driver.apk"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4

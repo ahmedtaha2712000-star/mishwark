@@ -34,6 +34,29 @@ jobs:
           unzip -q "$ZIP" -d source
           find source -name pubspec.yaml -print
 
+      - name: Fix Passenger Dart syntax
+        shell: bash
+        run: |
+          FILE=$(find source -type f -path "*/passenger_app/lib/screens/trip_flow_screen.dart" -print -quit)
+          echo "Fixing: $FILE"
+
+          python3 - "$FILE" <<'PY'
+          import sys
+          from pathlib import Path
+
+          p = Path(sys.argv[1])
+          s = p.read_text(encoding="utf-8")
+
+          old = "child:const Text('تقييم 5 نجوم'))]])));}"
+          new = "child:const Text('تقييم 5 نجوم'))]]))));}"
+
+          if old not in s:
+              raise SystemExit("ERROR: expected broken code was not found")
+
+          p.write_text(s.replace(old, new, 1), encoding="utf-8")
+          print("Syntax fixed successfully.")
+          PY
+
       - name: Build Passenger APK
         shell: bash
         run: |

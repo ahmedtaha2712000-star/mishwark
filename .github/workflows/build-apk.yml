@@ -24,13 +24,20 @@ jobs:
           cache: true
 
       - name: Extract project
+        shell: bash
         run: |
+          set -e
           mkdir -p source
-          unzip -q mishwark_release_candidate_1_0-1-fixed.zip -d source
+          ZIP=$(find . -maxdepth 2 -type f -iname "*.zip" -print -quit)
+          test -n "$ZIP"
+          echo "Using ZIP: $ZIP"
+          unzip -q "$ZIP" -d source
           find source -name pubspec.yaml -print
 
       - name: Build Passenger APK
+        shell: bash
         run: |
+          set -e
           PASSENGER=$(find source -type f -path "*/passenger_app/pubspec.yaml" -print -quit | xargs dirname)
           echo "Passenger directory: $PASSENGER"
           cd "$PASSENGER"
@@ -38,10 +45,13 @@ jobs:
           flutter pub get
           flutter build apk --release
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/artifacts/mishwark-passenger.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "$GITHUB_WORKSPACE/artifacts/mishwark-passenger.apk"
 
       - name: Build Driver APK
+        shell: bash
         run: |
+          set -e
           DRIVER=$(find source -type f -path "*/driver_app/pubspec.yaml" -print -quit | xargs dirname)
           echo "Driver directory: $DRIVER"
           cd "$DRIVER"
@@ -49,7 +59,8 @@ jobs:
           flutter pub get
           flutter build apk --release
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/artifacts/mishwark-driver.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "$GITHUB_WORKSPACE/artifacts/mishwark-driver.apk"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4

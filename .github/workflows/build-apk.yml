@@ -20,7 +20,7 @@ jobs:
         run: |
           rm -rf project
           mkdir project
-          unzip -q mishwark_demo_otp_bypass_fixed_v3.zip -d project
+          unzip -q mishwark_demo_data_v2.zip -d project
       - name: Fix trip flow screen
         run: |
           cat > project/apps/passenger_app/lib/screens/trip_flow_screen.dart <<'EOF'

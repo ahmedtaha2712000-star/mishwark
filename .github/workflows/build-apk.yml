@@ -2,8 +2,7 @@ name: Build Mishwark APKs
 
 on:
   push:
-    branches:
-      - main
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -17,78 +16,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract demo project
+        run: |
+          rm -rf project
+          mkdir project
+          unzip -q mishwark_demo_otp_bypass_fixed_v3.zip -d project
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Extract project
-        shell: bash
+      - name: Build passenger APK
+        working-directory: project/apps/passenger_app
         run: |
-          set -e
-          mkdir -p source
-          ZIP=$(find . -maxdepth 2 -type f -iname "*.zip" -print -quit)
-          test -n "$ZIP"
-          echo "Using ZIP: $ZIP"
-          unzip -q "$ZIP" -d source
-          find source -name pubspec.yaml -print
-
-      - name: Fix Passenger Dart syntax
-        shell: bash
-        run: |
-          FILE=$(find source -type f -path "*/passenger_app/lib/screens/trip_flow_screen.dart" -print -quit)
-          echo "Fixing: $FILE"
-
-          python3 - "$FILE" <<'PY'
-          import sys
-          from pathlib import Path
-
-          p = Path(sys.argv[1])
-          s = p.read_text(encoding="utf-8")
-
-          old = "child:const Text('تقييم 5 نجوم'))]])));}"
-          new = "child:const Text('تقييم 5 نجوم'))]]))));}"
-
-          if old not in s:
-              raise SystemExit("ERROR: expected broken code was not found")
-
-          p.write_text(s.replace(old, new, 1), encoding="utf-8")
-          print("Syntax fixed successfully.")
-          PY
-
-      - name: Build Passenger APK
-        shell: bash
-        run: |
-          set -e
-          PASSENGER=$(find source -type f -path "*/passenger_app/pubspec.yaml" -print -quit | xargs dirname)
-          echo "Passenger directory: $PASSENGER"
-          cd "$PASSENGER"
           flutter create --platforms=android .
           flutter pub get
           flutter build apk --release
-          mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp build/app/outputs/flutter-apk/app-release.apk \
-            "$GITHUB_WORKSPACE/artifacts/mishwark-passenger.apk"
+          mkdir -p ../../artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk ../../artifacts/mishwark-passenger-demo.apk
 
-      - name: Build Driver APK
-        shell: bash
+      - name: Build driver APK
+        working-directory: project/apps/driver_app
         run: |
-          set -e
-          DRIVER=$(find source -type f -path "*/driver_app/pubspec.yaml" -print -quit | xargs dirname)
-          echo "Driver directory: $DRIVER"
-          cd "$DRIVER"
           flutter create --platforms=android .
           flutter pub get
           flutter build apk --release
-          mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp build/app/outputs/flutter-apk/app-release.apk \
-            "$GITHUB_WORKSPACE/artifacts/mishwark-driver.apk"
+          mkdir -p ../../artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk ../../artifacts/mishwark-driver-demo.apk
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: mishwark-apks
-          path: artifacts/*.apk
+          name: mishwark-demo-apks
+          path: project/artifacts/*.apk
           if-no-files-found: error
           retention-days: 14

@@ -433,6 +433,17 @@
     alert(message);
   }
 </script>
+<script>
+const API_URL = "https://mishwark-eta.vercel.app";
 
+fetch(`${API_URL}/api/health`)
+  .then(response => response.json())
+  .then(data => {
+    console.log("Mishwark Backend:", data);
+  })
+  .catch(error => {
+    console.error("Backend connection error:", error);
+  });
+</script>
 </body>
 </html>

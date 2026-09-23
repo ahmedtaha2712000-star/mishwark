@@ -255,3 +255,12 @@ async function loadDashboard() {
     document.getElementById("loading").style.display = "none";
 
   } catch (error)
+{
+  document.getElementById("loading").style.display = "none";
+  const errorBox = document.getElementById("error");
+  errorBox.textContent = "تعذر تحميل البيانات: " + error.message;
+  errorBox.style.display = "block";
+}
+}
+
+loadDashboard();

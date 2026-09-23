@@ -3,213 +3,105 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>مشوارك — لوحة الإدارة</title>
+  <title>مشوار - لوحة الإدارة</title>
 
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, Tahoma, sans-serif;
-    }
+    * { box-sizing: border-box; }
 
     body {
+      margin: 0;
+      font-family: Arial, Tahoma, sans-serif;
       background: #f4f6f9;
       color: #172033;
     }
 
     header {
-      background: #111827;
+      background: #172033;
       color: white;
-      padding: 18px 25px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-
-    header h1 {
-      font-size: 24px;
-    }
-
-    header span {
-      font-size: 14px;
-      color: #cbd5e1;
+      padding: 22px;
+      text-align: center;
     }
 
     .container {
-      max-width: 1200px;
-      margin: auto;
-      padding: 25px;
-    }
-
-    .welcome {
-      background: white;
-      border-radius: 16px;
-      padding: 25px;
-      margin-bottom: 25px;
-      box-shadow: 0 4px 15px rgba(0,0,0,.06);
-    }
-
-    .welcome h2 {
-      margin-bottom: 8px;
-    }
-
-    .welcome p {
-      color: #64748b;
+      max-width: 1100px;
+      margin: 25px auto;
+      padding: 0 15px;
     }
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
       margin-bottom: 25px;
     }
 
     .card {
       background: white;
-      border-radius: 16px;
+      border-radius: 14px;
       padding: 22px;
-      box-shadow: 0 4px 15px rgba(0,0,0,.06);
+      box-shadow: 0 3px 12px rgba(0,0,0,.08);
+      text-align: center;
     }
 
-    .card .title {
-      color: #64748b;
-      font-size: 14px;
-      margin-bottom: 10px;
-    }
-
-    .card .number {
+    .number {
       font-size: 32px;
       font-weight: bold;
+      margin-top: 10px;
     }
 
     .section {
       background: white;
-      border-radius: 16px;
-      padding: 22px;
-      margin-bottom: 25px;
-      box-shadow: 0 4px 15px rgba(0,0,0,.06);
-    }
-
-    .section h3 {
-      margin-bottom: 18px;
-    }
-
-    .table-wrap {
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.08);
       overflow-x: auto;
+    }
+
+    h2 {
+      margin-top: 0;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 650px;
+      min-width: 600px;
     }
 
     th, td {
-      padding: 14px 10px;
+      padding: 12px;
+      border-bottom: 1px solid #eee;
       text-align: right;
-      border-bottom: 1px solid #e5e7eb;
     }
 
     th {
-      background: #f8fafc;
-      color: #475569;
-      font-size: 14px;
-    }
-
-    td {
-      font-size: 14px;
+      background: #f7f8fa;
     }
 
     .status {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 20px;
-      font-size: 12px;
       font-weight: bold;
     }
 
     .online {
-      background: #dcfce7;
-      color: #166534;
+      color: green;
     }
 
     .offline {
-      background: #fee2e2;
-      color: #991b1b;
+      color: #888;
     }
 
-    .searching {
-      background: #fef3c7;
-      color: #92400e;
-    }
-
-    .completed {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-
-    .buttons {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 25px;
-    }
-
-    button {
-      border: 0;
-      padding: 12px 18px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      background: #2563eb;
-      color: white;
-    }
-
-    button:hover {
-      opacity: .9;
-    }
-
-    .danger {
-      background: #dc2626;
-    }
-
-    .green {
-      background: #16a34a;
-    }
-
-    footer {
+    #loading {
       text-align: center;
-      color: #64748b;
-      padding: 25px;
-      font-size: 13px;
+      padding: 30px;
     }
 
-    @media (max-width: 800px) {
-      .cards {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      header {
-        padding: 15px;
-      }
-
-      .container {
-        padding: 15px;
-      }
-    }
-
-    @media (max-width: 500px) {
-      .cards {
-        grid-template-columns: 1fr;
-      }
-
-      header h1 {
-        font-size: 20px;
-      }
+    #error {
+      background: #ffe5e5;
+      color: #a00000;
+      padding: 15px;
+      border-radius: 10px;
+      display: none;
+      margin-bottom: 20px;
     }
   </style>
 </head>
@@ -217,233 +109,149 @@
 <body>
 
 <header>
-  <h1>🚕 مشوارك — لوحة الإدارة</h1>
-  <span>نظام إدارة التطبيق</span>
+  <h1>🚕 مشوار</h1>
+  <div>لوحة إدارة التطبيق</div>
 </header>
 
 <div class="container">
 
-  <div class="welcome">
-    <h2>مرحبًا بك في لوحة إدارة مشوارك 👋</h2>
-    <p>من هنا يمكنك متابعة السائقين والركاب والرحلات.</p>
-  </div>
+  <div id="loading">جاري تحميل البيانات...</div>
 
-  <div class="buttons">
-    <button onclick="showMessage('تم تحديث البيانات')">
-      🔄 تحديث البيانات
-    </button>
-
-    <button class="green" onclick="showMessage('سيتم إضافة سائق جديد لاحقًا')">
-      ➕ إضافة سائق
-    </button>
-
-    <button class="danger" onclick="showMessage('هذه نسخة تجريبية')">
-      ⚙️ الإعدادات
-    </button>
-  </div>
+  <div id="error"></div>
 
   <div class="cards">
-
     <div class="card">
-      <div class="title">إجمالي السائقين</div>
-      <div class="number">3</div>
+      <div>السائقين</div>
+      <div class="number" id="driversCount">0</div>
     </div>
 
     <div class="card">
-      <div class="title">الركاب</div>
-      <div class="number">1</div>
+      <div>الركاب</div>
+      <div class="number" id="passengersCount">0</div>
     </div>
 
     <div class="card">
-      <div class="title">إجمالي الرحلات</div>
-      <div class="number">1</div>
+      <div>رحلات اليوم</div>
+      <div class="number" id="todayTrips">0</div>
     </div>
 
     <div class="card">
-      <div class="title">رحلات نشطة</div>
-      <div class="number">1</div>
+      <div>الرحلات النشطة</div>
+      <div class="number" id="activeTrips">0</div>
     </div>
-
   </div>
 
   <div class="section">
+    <h2>🚗 السائقين</h2>
 
-    <h3>🚗 السائقون</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>الاسم</th>
+          <th>السيارة</th>
+          <th>التقييم</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
 
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-          <tr>
-            <th>السائق</th>
-            <th>السيارة</th>
-            <th>التقييم</th>
-            <th>الرحلات</th>
-            <th>الموقع</th>
-            <th>الحالة</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          <tr>
-            <td>محمد أحمد</td>
-            <td>هيونداي إلنترا</td>
-            <td>⭐ 4.9</td>
-            <td>328</td>
-            <td>1.2 كم</td>
-            <td>
-              <span class="status online">متصل</span>
-            </td>
-          </tr>
-
-          <tr>
-            <td>أحمد محمود</td>
-            <td>كيا سيراتو</td>
-            <td>⭐ 4.8</td>
-            <td>214</td>
-            <td>2.1 كم</td>
-            <td>
-              <span class="status online">متصل</span>
-            </td>
-          </tr>
-
-          <tr>
-            <td>محمود علي</td>
-            <td>تويوتا كورولا</td>
-            <td>⭐ 4.7</td>
-            <td>176</td>
-            <td>2.8 كم</td>
-            <td>
-              <span class="status offline">غير متصل</span>
-            </td>
-          </tr>
-
-        </tbody>
-
-      </table>
-
-    </div>
-
+      <tbody id="driversTable"></tbody>
+    </table>
   </div>
 
   <div class="section">
+    <h2>👤 الركاب</h2>
 
-    <h3>👤 الركاب</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>الاسم</th>
+          <th>الحالة</th>
+          <th>عدد الرحلات</th>
+        </tr>
+      </thead>
 
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-          <tr>
-            <th>الاسم</th>
-            <th>الحالة</th>
-            <th>الرحلات</th>
-            <th>آخر رحلة</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          <tr>
-            <td>أحمد طه</td>
-            <td>
-              <span class="status online">نشط</span>
-            </td>
-            <td>1</td>
-            <td>DEMO-2026-001</td>
-          </tr>
-
-        </tbody>
-
-      </table>
-
-    </div>
-
+      <tbody id="passengersTable"></tbody>
+    </table>
   </div>
 
   <div class="section">
+    <h2>🚕 الرحلات</h2>
 
-    <h3>🚕 الرحلات</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>رقم الرحلة</th>
+          <th>من</th>
+          <th>إلى</th>
+          <th>السعر</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
 
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-          <tr>
-            <th>رقم الرحلة</th>
-            <th>الراكب</th>
-            <th>من</th>
-            <th>إلى</th>
-            <th>السعر</th>
-            <th>المسافة</th>
-            <th>الحالة</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          <tr>
-            <td>DEMO-2026-001</td>
-            <td>أحمد طه</td>
-            <td>قويسنا</td>
-            <td>شبين الكوم</td>
-            <td>95 جنيه</td>
-            <td>18.5 كم</td>
-            <td>
-              <span class="status searching">
-                SEARCHING_DRIVER
-              </span>
-            </td>
-          </tr>
-
-          <tr>
-            <td>DEMO-2026-002</td>
-            <td>أحمد طه</td>
-            <td>القاهرة</td>
-            <td>مدينة نصر</td>
-            <td>85 جنيه</td>
-            <td>8.4 كم</td>
-            <td>
-              <span class="status completed">
-                تجريبية
-              </span>
-            </td>
-          </tr>
-
-        </tbody>
-
-      </table>
-
-    </div>
-
+      <tbody id="tripsTable"></tbody>
+    </table>
   </div>
 
 </div>
 
-<footer>
-  © 2026 مشوارك — جميع الحقوق محفوظة
-</footer>
-
 <script>
-  function showMessage(message) {
-    alert(message);
-  }
-</script>
-<script>
-const API_URL = "https://mishwark-eta.vercel.app";
+const API_URL =
+  "https://mishwark-eta.vercel.app/api/admin/dashboard";
 
-fetch(`${API_URL}/api/health`)
-  .then(response => response.json())
-  .then(data => {
-    console.log("Mishwark Backend:", data);
-  })
-  .catch(error => {
-    console.error("Backend connection error:", error);
-  });
-</script>
-</body>
-</html>
+async function loadDashboard() {
+  try {
+    const response = await fetch(API_URL);
+
+    if (!response.ok) {
+      throw new Error("فشل الاتصال بالخادم");
+    }
+
+    const data = await response.json();
+
+    document.getElementById("driversCount").textContent =
+      data.driversCount;
+
+    document.getElementById("passengersCount").textContent =
+      data.passengersCount;
+
+    document.getElementById("todayTrips").textContent =
+      data.todayTrips;
+
+    document.getElementById("activeTrips").textContent =
+      data.activeTrips;
+
+    document.getElementById("driversTable").innerHTML =
+      data.drivers.map(driver => `
+        <tr>
+          <td>${driver.name}</td>
+          <td>${driver.car}</td>
+          <td>⭐ ${driver.rating}</td>
+          <td class="status ${
+            driver.status === "متصل" ? "online" : "offline"
+          }">${driver.status}</td>
+        </tr>
+      `).join("");
+
+    document.getElementById("passengersTable").innerHTML =
+      data.passengers.map(passenger => `
+        <tr>
+          <td>${passenger.name}</td>
+          <td>${passenger.status}</td>
+          <td>${passenger.trips}</td>
+        </tr>
+      `).join("");
+
+    document.getElementById("tripsTable").innerHTML =
+      data.trips.map(trip => `
+        <tr>
+          <td>${trip.id}</td>
+          <td>${trip.from}</td>
+          <td>${trip.to}</td>
+          <td>${trip.price} جنيه</td>
+          <td>${trip.status}</td>
+        </tr>
+      `).join("");
+
+    document.getElementById("loading").style.display = "none";
+
+  } catch (error)

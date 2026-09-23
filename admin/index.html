@@ -6,7 +6,9 @@
   <title>مشوار - لوحة الإدارة</title>
 
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -20,6 +22,15 @@
       color: white;
       padding: 22px;
       text-align: center;
+    }
+
+    header h1 {
+      margin: 0 0 15px;
+      font-size: 38px;
+    }
+
+    header div {
+      font-size: 24px;
     }
 
     .container {
@@ -68,7 +79,8 @@
       min-width: 600px;
     }
 
-    th, td {
+    th,
+    td {
       padding: 12px;
       border-bottom: 1px solid #eee;
       text-align: right;
@@ -93,6 +105,7 @@
     #loading {
       text-align: center;
       padding: 30px;
+      font-size: 22px;
     }
 
     #error {
@@ -120,6 +133,7 @@
   <div id="error"></div>
 
   <div class="cards">
+
     <div class="card">
       <div>السائقين</div>
       <div class="number" id="driversCount">0</div>
@@ -139,6 +153,7 @@
       <div>الرحلات النشطة</div>
       <div class="number" id="activeTrips">0</div>
     </div>
+
   </div>
 
   <div class="section">
@@ -195,11 +210,14 @@
 </div>
 
 <script>
+
 const API_URL =
   "https://mishwark-eta.vercel.app/api/admin/dashboard";
 
 async function loadDashboard() {
+
   try {
+
     const response = await fetch(API_URL);
 
     if (!response.ok) {
@@ -227,40 +245,14 @@ async function loadDashboard() {
           <td>${driver.car}</td>
           <td>⭐ ${driver.rating}</td>
           <td class="status ${
-            driver.status === "متصل" ? "online" : "offline"
-          }">${driver.status}</td>
+            driver.status === "متصل"
+              ? "online"
+              : "offline"
+          }">
+            ${driver.status}
+          </td>
         </tr>
       `).join("");
 
     document.getElementById("passengersTable").innerHTML =
-      data.passengers.map(passenger => `
-        <tr>
-          <td>${passenger.name}</td>
-          <td>${passenger.status}</td>
-          <td>${passenger.trips}</td>
-        </tr>
-      `).join("");
-
-    document.getElementById("tripsTable").innerHTML =
-      data.trips.map(trip => `
-        <tr>
-          <td>${trip.id}</td>
-          <td>${trip.from}</td>
-          <td>${trip.to}</td>
-          <td>${trip.price} جنيه</td>
-          <td>${trip.status}</td>
-        </tr>
-      `).join("");
-
-    document.getElementById("loading").style.display = "none";
-
-  } catch (error)
-{
-  document.getElementById("loading").style.display = "none";
-  const errorBox = document.getElementById("error");
-  errorBox.textContent = "تعذر تحميل البيانات: " + error.message;
-  errorBox.style.display = "block";
-}
-}
-
-loadDashboard();
+      data.pass

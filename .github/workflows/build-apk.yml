@@ -1,158 +1,55 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
-import '../services/trip_actions_service.dart';
+name: Build Mishwark APKs
 
-class TripFlowScreen extends StatefulWidget {
-  final String tripId;
-  final String token;
-  final String baseUrl;
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
 
-  const TripFlowScreen({
-    super.key,
-    required this.tripId,
-    required this.token,
-    required this.baseUrl,
-  });
+permissions:
+  contents: read
 
-  @override
-  State<TripFlowScreen> createState() => _TripFlowScreenState();
-}
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-class _TripFlowScreenState extends State<TripFlowScreen> {
-  late final TripActionsService api;
-  String status = 'SEARCHING_DRIVER';
-  Timer? timer;
-  Map<String, dynamic>? trip;
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  @override
-  void initState() {
-    super.initState();
+      - name: Extract demo project
+        run: |
+          rm -rf project
+          mkdir project
+          unzip -q mishwark_demo_otp_bypass_fixed_v3.zip -d project
 
-    api = TripActionsService(
-      baseUrl: widget.baseUrl,
-      token: widget.token,
-    );
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
-    load();
+      - name: Build passenger APK
+        working-directory: project/apps/passenger_app
+        run: |
+          flutter create --platforms=android .
+          flutter pub get
+          flutter build apk --release
+          mkdir -p ../../artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk ../../artifacts/mishwark-passenger-demo.apk
 
-    timer = Timer.periodic(
-      const Duration(seconds: 4),
-      (_) => load(),
-    );
-  }
+      - name: Build driver APK
+        working-directory: project/apps/driver_app
+        run: |
+          flutter create --platforms=android .
+          flutter pub get
+          flutter build apk --release
+          mkdir -p ../../artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk ../../artifacts/mishwark-driver-demo.apk
 
-  Future<void> load() async {
-    try {
-      final x = await api.live(widget.tripId);
-
-      if (mounted) {
-        setState(() {
-          trip = x;
-          status = x['status'] ?? status;
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> act(String action) async {
-    try {
-      final x = await api.action(widget.tripId, action);
-
-      if (mounted) {
-        setState(() {
-          status = x['status'] ?? status;
-        });
-      }
-
-      load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('رحلتي'),
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'الحالة: $status',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-
-              const SizedBox(height: 20),
-
-              if (status == 'REQUESTED' ||
-                  status == 'SEARCHING_DRIVER')
-                FilledButton(
-                  onPressed: () => act('CANCEL'),
-                  child: const Text('إلغاء الرحلة'),
-                ),
-
-              if (status == 'DRIVER_ACCEPTED' ||
-                  status == 'DRIVER_ARRIVING')
-                const Text(
-                  'السائق في الطريق إليك',
-                ),
-
-              if (status == 'DRIVER_ARRIVED')
-                const Text(
-                  'السائق وصل إلى نقطة الالتقاط',
-                ),
-
-              if (status == 'TRIP_STARTED')
-                const Text(
-                  'الرحلة جارية الآن',
-                ),
-
-              if (status == 'TRIP_COMPLETED')
-                FilledButton(
-                  onPressed: () async {
-                    await api.cashPayment(widget.tripId);
-                    load();
-                  },
-                  child: const Text(
-                    'تم الدفع نقدًا',
-                  ),
-                ),
-
-              if (status == 'COMPLETED') ...[
-                const Text(
-                  'اكتملت الرحلة',
-                ),
-                FilledButton(
-                  onPressed: () {
-                    api.rate(widget.tripId, 5);
-                  },
-                  child: const Text(
-                    'تقييم 5 نجوم',
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mishwark-demo-apks
+          path: project/artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 14

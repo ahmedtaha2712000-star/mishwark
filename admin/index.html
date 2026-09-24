@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>مشوار - لوحة الإدارة</title>
 
   <style>
@@ -20,23 +21,80 @@
     header {
       background: #172033;
       color: white;
-      padding: 22px;
+      padding: 22px 15px;
       text-align: center;
     }
 
     header h1 {
-      margin: 0 0 15px;
-      font-size: 38px;
+      margin: 0 0 10px;
+      font-size: 34px;
     }
 
     header div {
-      font-size: 24px;
+      font-size: 21px;
     }
 
     .container {
       max-width: 1100px;
       margin: 25px auto;
       padding: 0 15px;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .refresh-btn {
+      border: 0;
+      background: #172033;
+      color: white;
+      padding: 13px 22px;
+      border-radius: 10px;
+      font-size: 17px;
+      cursor: pointer;
+    }
+
+    .refresh-btn:active {
+      transform: scale(.98);
+    }
+
+    #lastUpdate {
+      color: #666;
+      font-size: 14px;
+    }
+
+    #loading {
+      background: white;
+      text-align: center;
+      padding: 25px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 20px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.06);
+    }
+
+    #error {
+      background: #ffe5e5;
+      color: #a00000;
+      padding: 15px;
+      border-radius: 10px;
+      display: none;
+      margin-bottom: 20px;
+      line-height: 1.8;
+    }
+
+    #success {
+      background: #e7f7ed;
+      color: #08752b;
+      padding: 12px 15px;
+      border-radius: 10px;
+      display: none;
+      margin-bottom: 20px;
     }
 
     .cards {
@@ -52,6 +110,10 @@
       padding: 22px;
       box-shadow: 0 3px 12px rgba(0,0,0,.08);
       text-align: center;
+    }
+
+    .card-title {
+      font-size: 18px;
     }
 
     .number {
@@ -102,19 +164,38 @@
       color: #888;
     }
 
-    #loading {
+    .empty {
       text-align: center;
-      padding: 30px;
-      font-size: 22px;
+      color: #888;
+      padding: 25px;
     }
 
-    #error {
-      background: #ffe5e5;
-      color: #a00000;
-      padding: 15px;
-      border-radius: 10px;
-      display: none;
-      margin-bottom: 20px;
+    @media (max-width: 600px) {
+
+      header h1 {
+        font-size: 28px;
+      }
+
+      header div {
+        font-size: 18px;
+      }
+
+      .container {
+        padding: 0 10px;
+      }
+
+      .section {
+        padding: 15px;
+      }
+
+      .toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .refresh-btn {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -128,38 +209,61 @@
 
 <div class="container">
 
-  <div id="loading">جاري تحميل البيانات...</div>
+  <div class="toolbar">
+
+    <button
+      class="refresh-btn"
+      onclick="loadDashboard()"
+    >
+      🔄 تحديث البيانات
+    </button>
+
+    <div id="lastUpdate">
+      لم يتم التحديث بعد
+    </div>
+
+  </div>
+
+  <div id="loading">
+    جاري تحميل البيانات...
+  </div>
 
   <div id="error"></div>
+
+  <div id="success"></div>
 
   <div class="cards">
 
     <div class="card">
-      <div>السائقين</div>
+      <div class="card-title">🚗 السائقين</div>
       <div class="number" id="driversCount">0</div>
     </div>
 
     <div class="card">
-      <div>الركاب</div>
+      <div class="card-title">👤 الركاب</div>
       <div class="number" id="passengersCount">0</div>
     </div>
 
     <div class="card">
-      <div>رحلات اليوم</div>
+      <div class="card-title">🚕 رحلات اليوم</div>
       <div class="number" id="todayTrips">0</div>
     </div>
 
     <div class="card">
-      <div>الرحلات النشطة</div>
+      <div class="card-title">🟢 الرحلات النشطة</div>
       <div class="number" id="activeTrips">0</div>
     </div>
 
   </div>
 
+  <!-- السائقين -->
+
   <div class="section">
+
     <h2>🚗 السائقين</h2>
 
     <table>
+
       <thead>
         <tr>
           <th>الاسم</th>
@@ -170,13 +274,19 @@
       </thead>
 
       <tbody id="driversTable"></tbody>
+
     </table>
+
   </div>
 
+  <!-- الركاب -->
+
   <div class="section">
+
     <h2>👤 الركاب</h2>
 
     <table>
+
       <thead>
         <tr>
           <th>الاسم</th>
@@ -186,13 +296,19 @@
       </thead>
 
       <tbody id="passengersTable"></tbody>
+
     </table>
+
   </div>
 
+  <!-- الرحلات -->
+
   <div class="section">
+
     <h2>🚕 الرحلات</h2>
 
     <table>
+
       <thead>
         <tr>
           <th>رقم الرحلة</th>
@@ -204,93 +320,460 @@
       </thead>
 
       <tbody id="tripsTable"></tbody>
+
     </table>
+
   </div>
 
 </div>
 
 <script>
 
+/*
+|--------------------------------------------------------------------------
+| عنوان الخادم
+|--------------------------------------------------------------------------
+*/
+
 const API_URL =
   "https://mishwark-eta.vercel.app/api/admin/dashboard";
 
+
+/*
+|--------------------------------------------------------------------------
+| عناصر الصفحة
+|--------------------------------------------------------------------------
+*/
+
+const loading =
+  document.getElementById("loading");
+
+const errorBox =
+  document.getElementById("error");
+
+const successBox =
+  document.getElementById("success");
+
+const lastUpdate =
+  document.getElementById("lastUpdate");
+
+
+/*
+|--------------------------------------------------------------------------
+| أدوات مساعدة
+|--------------------------------------------------------------------------
+*/
+
+function showError(message) {
+
+  errorBox.textContent =
+    "تعذر تحميل البيانات: " + message;
+
+  errorBox.style.display = "block";
+
+  successBox.style.display = "none";
+}
+
+
+function showSuccess(message) {
+
+  successBox.textContent = message;
+
+  successBox.style.display = "block";
+
+  errorBox.style.display = "none";
+}
+
+
+function clearMessages() {
+
+  errorBox.style.display = "none";
+
+  successBox.style.display = "none";
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| حماية النصوص
+|--------------------------------------------------------------------------
+*/
+
+function safe(value) {
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| حالة التحميل
+|--------------------------------------------------------------------------
+*/
+
+function setLoading(value) {
+
+  if (value) {
+
+    loading.style.display = "block";
+
+  } else {
+
+    loading.style.display = "none";
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| تحميل لوحة الإدارة
+|--------------------------------------------------------------------------
+*/
+
 async function loadDashboard() {
+
+  clearMessages();
+
+  setLoading(true);
 
   try {
 
-    const response = await fetch(API_URL);
+    /*
+     * استخدام GET عادي
+     */
+
+    const response = await fetch(API_URL, {
+      method: "GET",
+      mode: "cors",
+      cache: "no-store",
+      headers: {
+        "Accept": "application/json"
+      }
+    });
+
+
+    /*
+     * فحص حالة الخادم
+     */
 
     if (!response.ok) {
-      throw new Error("فشل الاتصال بالخادم");
+
+      throw new Error(
+        "الخادم أعاد الخطأ HTTP " +
+        response.status
+      );
+
     }
 
-    const data = await response.json();
 
-    document.getElementById("driversCount").textContent =
-      data.driversCount;
+    /*
+     * قراءة JSON
+     */
 
-    document.getElementById("passengersCount").textContent =
-      data.passengersCount;
+    const data =
+      await response.json();
 
-    document.getElementById("todayTrips").textContent =
-      data.todayTrips;
 
-    document.getElementById("activeTrips").textContent =
-      data.activeTrips;
+    /*
+     * التحقق من البيانات
+     */
 
-    document.getElementById("driversTable").innerHTML =
-      data.drivers.map(driver => `
-        <tr>
-          <td>${driver.name}</td>
-          <td>${driver.car}</td>
-          <td>⭐ ${driver.rating}</td>
-          <td class="status ${
-            driver.status === "متصل"
+    if (!data || typeof data !== "object") {
+
+      throw new Error(
+        "الخادم أعاد بيانات غير صحيحة"
+      );
+
+    }
+
+
+    /*
+     * الأرقام
+     */
+
+    document.getElementById(
+      "driversCount"
+    ).textContent =
+      Number(data.driversCount || 0);
+
+
+    document.getElementById(
+      "passengersCount"
+    ).textContent =
+      Number(data.passengersCount || 0);
+
+
+    document.getElementById(
+      "todayTrips"
+    ).textContent =
+      Number(data.todayTrips || 0);
+
+
+    document.getElementById(
+      "activeTrips"
+    ).textContent =
+      Number(data.activeTrips || 0);
+
+
+    /*
+     * السائقين
+     */
+
+    const drivers =
+      Array.isArray(data.drivers)
+        ? data.drivers
+        : [];
+
+
+    const driversTable =
+      document.getElementById(
+        "driversTable"
+      );
+
+
+    if (drivers.length === 0) {
+
+      driversTable.innerHTML =
+        '<tr><td colspan="4" class="empty">لا يوجد سائقون</td></tr>';
+
+    } else {
+
+      driversTable.innerHTML =
+        drivers.map(driver => {
+
+          const status =
+            driver.status || "غير متصل";
+
+          const statusClass =
+            status === "متصل"
               ? "online"
-              : "offline"
-          }">
-            ${driver.status}
-          </td>
-        </tr>
-      `).join("");
+              : "offline";
 
-    document.getElementById("passengersTable").innerHTML =
-      data.passengers.map(passenger => `
-        <tr>
-          <td>${passenger.name}</td>
-          <td>${passenger.status}</td>
-          <td>${passenger.trips}</td>
-        </tr>
-      `).join("");
+          return `
+            <tr>
 
-    document.getElementById("tripsTable").innerHTML =
-      data.trips.map(trip => `
-        <tr>
-          <td>${trip.id}</td>
-          <td>${trip.from}</td>
-          <td>${trip.to}</td>
-          <td>${trip.price} جنيه</td>
-          <td>${trip.status}</td>
-        </tr>
-      `).join("");
+              <td>
+                ${safe(driver.name || "بدون اسم")}
+              </td>
 
-    document.getElementById("loading").style.display = "none";
+              <td>
+                ${safe(driver.car || "-")}
+              </td>
+
+              <td>
+                ⭐ ${safe(driver.rating ?? "-")}
+              </td>
+
+              <td class="status ${statusClass}">
+                ${safe(status)}
+              </td>
+
+            </tr>
+          `;
+
+        }).join("");
+
+    }
+
+
+    /*
+     * الركاب
+     */
+
+    const passengers =
+      Array.isArray(data.passengers)
+        ? data.passengers
+        : [];
+
+
+    const passengersTable =
+      document.getElementById(
+        "passengersTable"
+      );
+
+
+    if (passengers.length === 0) {
+
+      passengersTable.innerHTML =
+        '<tr><td colspan="3" class="empty">لا يوجد ركاب</td></tr>';
+
+    } else {
+
+      passengersTable.innerHTML =
+        passengers.map(passenger => {
+
+          return `
+            <tr>
+
+              <td>
+                ${safe(passenger.name || "بدون اسم")}
+              </td>
+
+              <td>
+                ${safe(passenger.status || "-")}
+              </td>
+
+              <td>
+                ${safe(passenger.trips ?? 0)}
+              </td>
+
+            </tr>
+          `;
+
+        }).join("");
+
+    }
+
+
+    /*
+     * الرحلات
+     */
+
+    const trips =
+      Array.isArray(data.trips)
+        ? data.trips
+        : [];
+
+
+    const tripsTable =
+      document.getElementById(
+        "tripsTable"
+      );
+
+
+    if (trips.length === 0) {
+
+      tripsTable.innerHTML =
+        '<tr><td colspan="5" class="empty">لا توجد رحلات</td></tr>';
+
+    } else {
+
+      tripsTable.innerHTML =
+        trips.map(trip => {
+
+          return `
+            <tr>
+
+              <td>
+                ${safe(trip.id || "-")}
+              </td>
+
+              <td>
+                ${safe(trip.from || "-")}
+              </td>
+
+              <td>
+                ${safe(trip.to || "-")}
+              </td>
+
+              <td>
+                ${safe(trip.price ?? 0)} جنيه
+              </td>
+
+              <td>
+                ${safe(trip.status || "-")}
+              </td>
+
+            </tr>
+          `;
+
+        }).join("");
+
+    }
+
+
+    /*
+     * وقت آخر تحديث
+     */
+
+    const now =
+      new Date();
+
+    lastUpdate.textContent =
+      "آخر تحديث: " +
+      now.toLocaleTimeString(
+        "ar-EG"
+      );
+
+
+    /*
+     * نجاح
+     */
+
+    showSuccess(
+      "تم تحميل بيانات لوحة الإدارة بنجاح"
+    );
+
 
   } catch (error) {
 
-    document.getElementById("loading").style.display = "none";
+    console.error(
+      "Mishwark Dashboard Error:",
+      error
+    );
 
-    const errorBox =
-      document.getElementById("error");
 
-    errorBox.textContent =
-      "تعذر تحميل البيانات: " + error.message;
+    /*
+     * رسالة مناسبة للمستخدم
+     */
 
-    errorBox.style.display = "block";
+    let message =
+      "حدث خطأ أثناء الاتصال بالخادم";
+
+
+    if (
+      error &&
+      error.message
+    ) {
+
+      message =
+        error.message;
+
+    }
+
+
+    showError(message);
+
+
+  } finally {
+
+    setLoading(false);
+
   }
+
 }
 
+
+/*
+|--------------------------------------------------------------------------
+| التشغيل عند فتح الصفحة
+|--------------------------------------------------------------------------
+*/
+
 loadDashboard();
+
+
+/*
+|--------------------------------------------------------------------------
+| تحديث تلقائي كل 30 ثانية
+|--------------------------------------------------------------------------
+*/
+
+setInterval(
+  loadDashboard,
+  30000
+);
 
 </script>
 

@@ -8,26 +8,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
 const JWT_SECRET =
-  process.env.JWT_SECRET || "mishwark-demo-secret-change-before-production";
+  process.env.JWT_SECRET || "mishwark-demo-secret";
 
 const users = new Map();
-const otpStore = new Map();
+const otps = new Map();
 const trips = new Map();
 
-function normalizePhone(phone) {
-  return String(phone || "")
-    .trim()
-    .replace(/[^\d+]/g, "");
+function phoneOf(value) {
+  return String(value || "").trim().replace(/[^\d+]/g, "");
 }
 
-function createToken(user) {
+function makeToken(user) {
   return jwt.sign(
     {
       sub: user.id,
-      role: user.role,
       phone: user.phone,
+      role: user.role,
     },
     JWT_SECRET,
     { expiresIn: "7d" }
@@ -39,99 +36,92 @@ function auth(req, res, next) {
     const header = req.headers.authorization || "";
 
     if (!header.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Unauthorized",
-      });
+      return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const token = header.substring(7);
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(
+      header.substring(7),
+      JWT_SECRET
+    );
 
     next();
-  } catch (error) {
-    return res.status(401).json({
+  } catch (_) {
+    res.status(401).json({
       error: "Invalid or expired token",
     });
   }
 }
 
-function requireRole(role) {
-  return (req, res, next) => {
-    if (!req.user || req.user.role !== role) {
-      return res.status(403).json({
-        error: "Forbidden",
-      });
-    }
+/* =========================
+   HOME / HEALTH
+========================= */
 
-    next();
-  };
-}
-
-function findTrip(id) {
-  return trips.get(String(id));
-}
-
-/*
-|--------------------------------------------------------------------------
-| Health
-|--------------------------------------------------------------------------
-*/
-
-function health(req, res) {
+app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Mishwark Backend يعمل",
   });
-}
+});
 
-app.get("/health", health);
-app.get("/api/health", health);
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "Mishwark Backend يعمل",
+  });
+});
 
-/*
-|--------------------------------------------------------------------------
-| OTP
-|--------------------------------------------------------------------------
-*/
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "Mishwark Backend يعمل",
+  });
+});
+
+/* =========================
+   OTP
+========================= */
 
 function requestOtp(req, res) {
-  const phone = normalizePhone(req.body?.phone);
+  const phone = phoneOf(req.body?.phone);
 
-  if (!/^\+?\d{10,15}$/.test(phone)) {
+  if (phone.length < 10) {
     return res.status(400).json({
       error: "Invalid phone number",
     });
   }
 
-  /*
-   * Demo OTP
-   * في النسخة التجريبية الكود ثابت:
-   * 123456
-   */
-  otpStore.set(phone, {
+  otps.set(phone, {
     code: "123456",
     expiresAt: Date.now() + 5 * 60 * 1000,
   });
 
-  return res.json({
+  res.json({
+    ok: true,
     phone,
-    expiresInSeconds: 300,
     devCode: "123456",
+    expiresInSeconds: 300,
   });
 }
 
 function verifyOtp(req, res) {
-  const phone = normalizePhone(req.body?.phone);
+  const phone = phoneOf(req.body?.phone);
   const code = String(req.body?.code || "");
   const role =
-    String(req.body?.role || "PASSENGER").toUpperCase() === "DRIVER"
-      ? "DRIVER"
-      : "PASSENGER";
+    String(req.body?.role || "PASSENGER").toUpperCase();
 
-  const otp = otpStore.get(phone);
+  const otp = otps.get(phone);
 
-  if (!otp || otp.expiresAt < Date.now()) {
+  if (!otp) {
     return res.status(401).json({
-      error: "OTP expired or not found",
+      error: "OTP not requested",
+    });
+  }
+
+  if (Date.now() > otp.expiresAt) {
+    otps.delete(phone);
+
+    return res.status(401).json({
+      error: "OTP expired",
     });
   }
 
@@ -141,7 +131,7 @@ function verifyOtp(req, res) {
     });
   }
 
-  otpStore.delete(phone);
+  otps.delete(phone);
 
   let user = users.get(phone);
 
@@ -149,32 +139,27 @@ function verifyOtp(req, res) {
     user = {
       id: crypto.randomUUID(),
       phone,
-      role,
+      role: role === "DRIVER" ? "DRIVER" : "PASSENGER",
       createdAt: new Date().toISOString(),
     };
 
     users.set(phone, user);
   } else {
-    user.role = role;
+    user.role =
+      role === "DRIVER" ? "DRIVER" : "PASSENGER";
   }
 
-  const token = createToken(user);
+  const token = makeToken(user);
 
-  return res.json({
+  res.json({
     token,
     user,
   });
 }
 
 /*
- * التطبيق الحالي يستخدم:
- * /auth/request-otp
- * /auth/verify-otp
- *
- * والـAPK الذي بُني بعنوان /api يستخدم:
- * /api/auth/request-otp
- * /api/auth/verify-otp
- *
+ * التطبيق يستخدم /auth/...
+ * والنسخة القديمة من APK قد تستخدم /api/auth/...
  * لذلك نقبل الاثنين.
  */
 
@@ -184,56 +169,36 @@ app.post("/api/auth/request-otp", requestOtp);
 app.post("/auth/verify-otp", verifyOtp);
 app.post("/api/auth/verify-otp", verifyOtp);
 
-/*
-|--------------------------------------------------------------------------
-| Auth Me
-|--------------------------------------------------------------------------
-*/
+/* =========================
+   DEVICE TOKEN
+========================= */
 
-function me(req, res) {
-  const user = [...users.values()].find((u) => u.id === req.user.sub);
-
+function deviceToken(req, res) {
   res.json({
-    user: user || {
-      id: req.user.sub,
-      phone: req.user.phone,
-      role: req.user.role,
-    },
-  });
-}
-
-app.get("/auth/me", auth, me);
-app.get("/api/auth/me", auth, me);
-
-/*
-|--------------------------------------------------------------------------
-| Devices
-|--------------------------------------------------------------------------
-*/
-
-function saveDevice(req, res) {
-  return res.json({
     ok: true,
   });
 }
 
-app.post("/devices/token", auth, saveDevice);
-app.post("/api/devices/token", auth, saveDevice);
+app.post("/devices/token", auth, deviceToken);
+app.post("/api/devices/token", auth, deviceToken);
 
-/*
-|--------------------------------------------------------------------------
-| Route Estimate
-|--------------------------------------------------------------------------
-*/
+/* =========================
+   ROUTE ESTIMATE
+========================= */
 
-function distanceMeters(lat1, lng1, lat2, lng2) {
+function distanceMeters(
+  lat1,
+  lng1,
+  lat2,
+  lng2
+) {
   const R = 6371000;
 
-  const p1 = (lat1 * Math.PI) / 180;
-  const p2 = (lat2 * Math.PI) / 180;
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
 
-  const dp = ((lat2 - lat1) * Math.PI) / 180;
-  const dl = ((lng2 - lng1) * Math.PI) / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180;
+  const dl = (lng2 - lng1) * Math.PI / 180;
 
   const a =
     Math.sin(dp / 2) ** 2 +
@@ -246,7 +211,7 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
   );
 }
 
-function estimateRoute(req, res) {
+app.post("/routes/estimate", (req, res) => {
   const origin = req.body?.origin;
   const destination = req.body?.destination;
 
@@ -256,4 +221,443 @@ function estimateRoute(req, res) {
     });
   }
 
-  const distance
+  const distance = distanceMeters(
+    Number(origin.lat),
+    Number(origin.lng),
+    Number(destination.lat),
+    Number(destination.lng)
+  );
+
+  const duration = Math.max(
+    60,
+    Math.round(distance / 8)
+  );
+
+  const fare = Math.max(
+    15,
+    Math.round(10 + distance / 1000 * 6)
+  );
+
+  res.json({
+    distanceMeters: distance,
+    durationSeconds: duration,
+    polyline: null,
+    estimatedFare: fare,
+    currency: "EGP",
+  });
+});
+
+app.post("/api/routes/estimate", (req, res) => {
+  const origin = req.body?.origin;
+  const destination = req.body?.destination;
+
+  if (!origin || !destination) {
+    return res.status(400).json({
+      error: "origin and destination are required",
+    });
+  }
+
+  const distance = distanceMeters(
+    Number(origin.lat),
+    Number(origin.lng),
+    Number(destination.lat),
+    Number(destination.lng)
+  );
+
+  const duration = Math.max(
+    60,
+    Math.round(distance / 8)
+  );
+
+  const fare = Math.max(
+    15,
+    Math.round(10 + distance / 1000 * 6)
+  );
+
+  res.json({
+    distanceMeters: distance,
+    durationSeconds: duration,
+    polyline: null,
+    estimatedFare: fare,
+    currency: "EGP",
+  });
+});
+
+/* =========================
+   CREATE TRIP
+========================= */
+
+function createTrip(req, res) {
+  const {
+    pickupLat,
+    pickupLng,
+    destinationLat,
+    destinationLng,
+  } = req.body || {};
+
+  if (
+    !Number.isFinite(Number(pickupLat)) ||
+    !Number.isFinite(Number(pickupLng)) ||
+    !Number.isFinite(Number(destinationLat)) ||
+    !Number.isFinite(Number(destinationLng))
+  ) {
+    return res.status(400).json({
+      error: "Invalid coordinates",
+    });
+  }
+
+  const distance = distanceMeters(
+    Number(pickupLat),
+    Number(pickupLng),
+    Number(destinationLat),
+    Number(destinationLng)
+  );
+
+  const fare = Math.max(
+    15,
+    Math.round(10 + distance / 1000 * 6)
+  );
+
+  const id = crypto.randomUUID();
+
+  const trip = {
+    id,
+    passenger_id: req.user.sub,
+
+    pickup_lat: Number(pickupLat),
+    pickup_lng: Number(pickupLng),
+
+    destination_lat: Number(destinationLat),
+    destination_lng: Number(destinationLng),
+
+    distance_meters: distance,
+    estimated_fare: fare,
+    final_fare: null,
+
+    payment_method: "CASH",
+
+    status: "SEARCHING_DRIVER",
+
+    driver_id: null,
+    driver_lat: null,
+    driver_lng: null,
+
+    rating: null,
+    rating_comment: null,
+
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  trips.set(id, trip);
+
+  res.status(201).json(trip);
+}
+
+app.post("/trips", auth, createTrip);
+app.post("/api/trips", auth, createTrip);
+
+/* =========================
+   LIVE TRIP
+========================= */
+
+function liveTrip(req, res) {
+  const trip = trips.get(req.params.id);
+
+  if (!trip) {
+    return res.status(404).json({
+      error: "Trip not found",
+    });
+  }
+
+  res.json(trip);
+}
+
+app.get("/trips/:id/live", auth, liveTrip);
+app.get("/api/trips/:id/live", auth, liveTrip);
+
+/* =========================
+   MATCH DRIVER
+========================= */
+
+function matchDriver(req, res) {
+  const trip = trips.get(req.params.id);
+
+  if (!trip) {
+    return res.status(404).json({
+      error: "Trip not found",
+    });
+  }
+
+  res.json({
+    matched: false,
+    message: "جاري البحث عن سائق",
+    trip,
+  });
+}
+
+app.post(
+  "/trips/:id/match-driver",
+  auth,
+  matchDriver
+);
+
+app.post(
+  "/api/trips/:id/match-driver",
+  auth,
+  matchDriver
+);
+
+/* =========================
+   TRIP ACTION
+========================= */
+
+function tripAction(req, res) {
+  const trip = trips.get(req.params.id);
+
+  if (!trip) {
+    return res.status(404).json({
+      error: "Trip not found",
+    });
+  }
+
+  const action = String(
+    req.body?.action || ""
+  ).toUpperCase();
+
+  if (action === "CANCEL") {
+    trip.status = "CANCELLED";
+  } else if (action === "ACCEPT") {
+    trip.status = "DRIVER_ACCEPTED";
+    trip.driver_id = req.user.sub;
+  } else if (action === "ARRIVING") {
+    trip.status = "DRIVER_ARRIVING";
+  } else if (action === "ARRIVED") {
+    trip.status = "DRIVER_ARRIVED";
+  } else if (action === "START") {
+    trip.status = "TRIP_STARTED";
+  } else if (action === "COMPLETE") {
+    trip.status = "TRIP_COMPLETED";
+  } else {
+    return res.status(400).json({
+      error: "Unsupported action",
+    });
+  }
+
+  trip.updated_at = new Date().toISOString();
+
+  res.json(trip);
+}
+
+app.post(
+  "/trips/:id/action",
+  auth,
+  tripAction
+);
+
+app.post(
+  "/api/trips/:id/action",
+  auth,
+  tripAction
+);
+
+/* =========================
+   CASH PAYMENT
+========================= */
+
+function cashPayment(req, res) {
+  const trip = trips.get(req.params.id);
+
+  if (!trip) {
+    return res.status(404).json({
+      error: "Trip not found",
+    });
+  }
+
+  trip.final_fare =
+    trip.final_fare || trip.estimated_fare;
+
+  trip.status = "COMPLETED";
+  trip.updated_at = new Date().toISOString();
+
+  res.json(trip);
+}
+
+app.post(
+  "/trips/:id/cash-payment",
+  auth,
+  cashPayment
+);
+
+app.post(
+  "/api/trips/:id/cash-payment",
+  auth,
+  cashPayment
+);
+
+/* =========================
+   CASH PAYMENT ALTERNATIVE
+========================= */
+
+function cashPayment2(req, res) {
+  const trip = trips.get(req.params.id);
+
+  if (!trip) {
+    return res.status(404).json({
+      error: "Trip not found",
+    });
+  }
+
+  if (Number.isFinite(
+    Number(req.body?.finalFare)
+  )) {
+    trip.final_fare =
+      Number(req.body.finalFare);
+  }
+
+  trip.status = "COMPLETED";
+  trip.updated_at = new Date().toISOString();
+
+  res.json(trip);
+}
+
+app.post(
+  "/trips/:id/payment/cash",
+  auth,
+  cashPayment2
+);
+
+app.post(
+  "/api/trips/:id/payment/cash",
+  auth,
+  cashPayment2
+);
+
+/* =========================
+   RATING
+========================= */
+
+function rating(req, res) {
+  const trip = trips.get(req.params.id);
+
+  if (!trip) {
+    return res.status(404).json({
+      error: "Trip not found",
+    });
+  }
+
+  const value = Number(
+    req.body?.rating ?? req.body?.stars
+  );
+
+  if (
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > 5
+  ) {
+    return res.status(400).json({
+      error: "Rating must be between 1 and 5",
+    });
+  }
+
+  trip.rating = value;
+  trip.rating_comment =
+    req.body?.comment || null;
+
+  trip.updated_at = new Date().toISOString();
+
+  res.json({
+    ok: true,
+    rating: value,
+    trip,
+  });
+}
+
+app.post(
+  "/trips/:id/rating",
+  auth,
+  rating
+);
+
+app.post(
+  "/api/trips/:id/rating",
+  auth,
+  rating
+);
+
+/* =========================
+   DRIVER STATUS
+========================= */
+
+app.post(
+  "/drivers/me/online",
+  auth,
+  (req, res) => {
+    res.json({
+      ok: true,
+      online: !!req.body?.online,
+    });
+  }
+);
+
+app.post(
+  "/api/drivers/me/online",
+  auth,
+  (req, res) => {
+    res.json({
+      ok: true,
+      online: !!req.body?.online,
+    });
+  }
+);
+
+app.post(
+  "/drivers/me/location",
+  auth,
+  (req, res) => {
+    res.json({
+      ok: true,
+      lat: req.body?.lat ?? null,
+      lng: req.body?.lng ?? null,
+    });
+  }
+);
+
+app.post(
+  "/api/drivers/me/location",
+  auth,
+  (req, res) => {
+    res.json({
+      ok: true,
+      lat: req.body?.lat ?? null,
+      lng: req.body?.lng ?? null,
+    });
+  }
+);
+
+/* =========================
+   404
+========================= */
+
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Not Found",
+    path: req.path,
+  });
+});
+
+/* =========================
+   VERCEL / LOCAL
+========================= */
+
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+
+  app.listen(port, () => {
+    console.log(
+      `Mishwark Backend running on port ${port}`
+    );
+  });
+}
+
+module.exports = app;

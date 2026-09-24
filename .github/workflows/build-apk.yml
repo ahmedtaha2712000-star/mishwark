@@ -6,6 +6,11 @@ on:
       - main
 
   workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Backend API URL"
+        required: true
+        default: "https://mishwark-eta.vercel.app"
 
 permissions:
   contents: read
@@ -24,18 +29,237 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extract project
+      - name: Extract Flutter project
         run: |
           rm -rf project
-          mkdir project
+          mkdir -p project
           unzip -q mishwark_release_candidate_1_0-1.zip -d project
+
+      - name: Fix passenger trip screen
+        run: |
+          cat > project/apps/passenger_app/lib/screens/trip_flow_screen.dart <<'EOF'
+          import 'dart:async';
+
+          import 'package:flutter/material.dart';
+
+          import '../services/trip_actions_service.dart';
+
+          class TripFlowScreen extends StatefulWidget {
+            final String tripId;
+            final String token;
+            final String baseUrl;
+
+            const TripFlowScreen({
+              super.key,
+              required this.tripId,
+              required this.token,
+              required this.baseUrl,
+            });
+
+            @override
+            State<TripFlowScreen> createState() => _TripFlowScreenState();
+          }
+
+          class _TripFlowScreenState extends State<TripFlowScreen> {
+            late final TripActionsService api;
+
+            String status = 'SEARCHING_DRIVER';
+            Timer? timer;
+
+            @override
+            void initState() {
+              super.initState();
+
+              api = TripActionsService(
+                baseUrl: widget.baseUrl,
+                token: widget.token,
+              );
+
+              load();
+
+              timer = Timer.periodic(
+                const Duration(seconds: 4),
+                (_) => load(),
+              );
+            }
+
+            Future<void> load() async {
+              try {
+                final result = await api.live(widget.tripId);
+
+                if (!mounted) return;
+
+                setState(() {
+                  status = result['status']?.toString() ?? status;
+                });
+              } catch (_) {}
+            }
+
+            Future<void> act(String action) async {
+              try {
+                final result = await api.action(
+                  widget.tripId,
+                  action,
+                );
+
+                if (!mounted) return;
+
+                setState(() {
+                  status =
+                      result['status']?.toString() ?? status;
+                });
+
+                await load();
+              } catch (error) {
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error.toString()),
+                  ),
+                );
+              }
+            }
+
+            Future<void> payCash() async {
+              try {
+                await api.cashPayment(widget.tripId);
+                await load();
+              } catch (error) {
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error.toString()),
+                  ),
+                );
+              }
+            }
+
+            Future<void> rateFiveStars() async {
+              try {
+                await api.rate(widget.tripId, 5);
+                await load();
+              } catch (error) {
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error.toString()),
+                  ),
+                );
+              }
+            }
+
+            @override
+            void dispose() {
+              timer?.cancel();
+              super.dispose();
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Directionality(
+                textDirection: TextDirection.rtl,
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: const Text('رحلتي'),
+                  ),
+                  body: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'الحالة: $status',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall,
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        if (status == 'REQUESTED' ||
+                            status == 'SEARCHING_DRIVER')
+                          FilledButton(
+                            onPressed: () => act('CANCEL'),
+                            child: const Text('إلغاء الرحلة'),
+                          ),
+
+                        if (status == 'DRIVER_ACCEPTED' ||
+                            status == 'DRIVER_ARRIVING')
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                            child: Text(
+                              'السائق في الطريق إليك',
+                            ),
+                          ),
+
+                        if (status == 'DRIVER_ARRIVED')
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                            child: Text(
+                              'السائق وصل إلى نقطة الالتقاط',
+                            ),
+                          ),
+
+                        if (status == 'TRIP_STARTED')
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                            child: Text(
+                              'الرحلة جارية الآن',
+                            ),
+                          ),
+
+                        if (status == 'TRIP_COMPLETED')
+                          FilledButton(
+                            onPressed: payCash,
+                            child: const Text(
+                              'تم الدفع نقدًا',
+                            ),
+                          ),
+
+                        if (status == 'COMPLETED') ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                            child: Text(
+                              'اكتملت الرحلة',
+                            ),
+                          ),
+
+                          FilledButton(
+                            onPressed: rateFiveStars,
+                            child: const Text(
+                              'تقييم 5 نجوم',
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+          }
+          EOF
 
       - name: Build passenger APK
         working-directory: project/apps/passenger_app
+        env:
+          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
         run: |
           flutter create --platforms=android .
           flutter pub get
-          flutter build apk --release --dart-define=API_URL=https://mishwark-eta.vercel.app
+          flutter build apk --release --dart-define=API_URL="$API_URL"
 
       - name: Copy passenger APK
         run: |
@@ -44,16 +268,18 @@ jobs:
 
       - name: Build driver APK
         working-directory: project/apps/driver_app
+        env:
+          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
         run: |
           flutter create --platforms=android .
           flutter pub get
-          flutter build apk --release --dart-define=API_URL=https://mishwark-eta.vercel.app
+          flutter build apk --release --dart-define=API_URL="$API_URL"
 
       - name: Copy driver APK
         run: |
           cp project/apps/driver_app/build/app/outputs/flutter-apk/app-release.apk artifacts/mishwark-driver.apk
 
-      - name: Check APKs
+      - name: Verify APKs
         run: |
           ls -lh artifacts
           test -f artifacts/mishwark-passenger.apk

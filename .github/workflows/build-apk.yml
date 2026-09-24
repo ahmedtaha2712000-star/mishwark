@@ -6,11 +6,6 @@ on:
       - main
 
   workflow_dispatch:
-    inputs:
-      api_url:
-        description: "Backend API URL"
-        required: true
-        default: "https://mishwark-eta.vercel.app/api"
 
 permissions:
   contents: read
@@ -29,35 +24,45 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extract Flutter project
+      - name: Extract project
         run: |
           rm -rf project
-          mkdir -p project
+          mkdir project
           unzip -q mishwark_release_candidate_1_0-1.zip -d project
-          echo "Flutter project extracted successfully"
 
-      - name: Fix passenger trip screen
-        run: |
-          python3 -c "from pathlib import Path; p=Path('project/apps/passenger_app/lib/screens/trip_flow_screen.dart'); s=p.read_text(); s=s.replace('const Text('\''تقييم 5 نجوم'\'')]]);}', 'const Text('\''تقييم 5 نجوم'\'')]);}'); p.write_text(s)"
-          echo "Passenger screen checked"
-
-      - name: Create passenger Android project
+      - name: Build passenger APK
         working-directory: project/apps/passenger_app
         run: |
           flutter create --platforms=android .
           flutter pub get
-
-      - name: Build passenger APK
-        working-directory: project/apps/passenger_app
-        env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app/api' }}
-        run: |
-          flutter build apk --release --dart-define=API_URL="$API_URL"
+          flutter build apk --release --dart-define=API_URL=https://mishwark-eta.vercel.app
 
       - name: Copy passenger APK
         run: |
           mkdir -p artifacts
           cp project/apps/passenger_app/build/app/outputs/flutter-apk/app-release.apk artifacts/mishwark-passenger.apk
-          echo "Passenger APK copied"
 
-      - name:
+      - name: Build driver APK
+        working-directory: project/apps/driver_app
+        run: |
+          flutter create --platforms=android .
+          flutter pub get
+          flutter build apk --release --dart-define=API_URL=https://mishwark-eta.vercel.app
+
+      - name: Copy driver APK
+        run: |
+          cp project/apps/driver_app/build/app/outputs/flutter-apk/app-release.apk artifacts/mishwark-driver.apk
+
+      - name: Check APKs
+        run: |
+          ls -lh artifacts
+          test -f artifacts/mishwark-passenger.apk
+          test -f artifacts/mishwark-driver.apk
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mishwark-apks
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 14

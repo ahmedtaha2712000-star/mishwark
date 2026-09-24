@@ -1,273 +1,259 @@
-const http = require("http");
+const express = require("express");
+const cors = require("cors");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-
-/* =========================
-   بيانات تجريبية
-========================= */
-
-const dashboardData = {
-  drivers: [
-    {
-      name: "محمد أحمد",
-      car: "هيونداي إلنترا",
-      rating: 4.9,
-      status: "متصل"
-    },
-    {
-      name: "أحمد محمود",
-      car: "كيا سيراتو",
-      rating: 4.8,
-      status: "متصل"
-    },
-    {
-      name: "محمود علي",
-      car: "تويوتا كورولا",
-      rating: 4.7,
-      status: "غير متصل"
-    }
-  ],
-
-  passengers: [
-    {
-      name: "أحمد طه",
-      status: "نشط",
-      trips: 24
-    },
-    {
-      name: "محمد علي",
-      status: "نشط",
-      trips: 11
-    }
-  ]
-};
-
-/* =========================
-   تخزين مؤقت
-========================= */
+const JWT_SECRET =
+  process.env.JWT_SECRET || "mishwark-demo-secret-change-before-production";
 
 const users = new Map();
+const otpStore = new Map();
 const trips = new Map();
 
-let tripCounter = 1;
-
-/* =========================
-   Helpers
-========================= */
-
-function sendJson(res, statusCode, data) {
-  res.statusCode = statusCode;
-
-  res.setHeader(
-    "Content-Type",
-    "application/json; charset=utf-8"
-  );
-
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    "*"
-  );
-
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,POST,OPTIONS"
-  );
-
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
-
-  res.end(JSON.stringify(data));
+function normalizePhone(phone) {
+  return String(phone || "")
+    .trim()
+    .replace(/[^\d+]/g, "");
 }
 
-function sendError(res, statusCode, message) {
-  sendJson(res, statusCode, {
-    error: message
-  });
+function createToken(user) {
+  return jwt.sign(
+    {
+      sub: user.id,
+      role: user.role,
+      phone: user.phone,
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
 }
 
-function getToken(req) {
-  const auth = req.headers.authorization || "";
+function auth(req, res, next) {
+  try {
+    const header = req.headers.authorization || "";
 
-  if (!auth.startsWith("Bearer ")) {
-    return null;
-  }
-
-  return auth.substring(7);
-}
-
-function getUserFromToken(req) {
-  const token = getToken(req);
-
-  if (!token) {
-    return null;
-  }
-
-  for (const user of users.values()) {
-    if (user.token === token) {
-      return user;
+    if (!header.startsWith("Bearer ")) {
+      return res.status(401).json({
+        error: "Unauthorized",
+      });
     }
-  }
 
-  return null;
+    const token = header.substring(7);
+    req.user = jwt.verify(token, JWT_SECRET);
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      error: "Invalid or expired token",
+    });
+  }
 }
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
+function requireRole(role) {
+  return (req, res, next) => {
+    if (!req.user || req.user.role !== role) {
+      return res.status(403).json({
+        error: "Forbidden",
+      });
+    }
 
-    req.on("data", chunk => {
-      body += chunk;
-    });
+    next();
+  };
+}
 
-    req.on("end", () => {
-      if (!body) {
-        resolve({});
-        return;
-      }
+function findTrip(id) {
+  return trips.get(String(id));
+}
 
-      try {
-        resolve(JSON.parse(body));
-      } catch (e) {
-        reject(new Error("Invalid JSON"));
-      }
-    });
+/*
+|--------------------------------------------------------------------------
+| Health
+|--------------------------------------------------------------------------
+*/
 
-    req.on("error", reject);
+function health(req, res) {
+  res.json({
+    status: "ok",
+    message: "Mishwark Backend يعمل",
   });
 }
 
-/* =========================
-   Auth
-========================= */
+app.get("/health", health);
+app.get("/api/health", health);
 
-async function requestOtp(req, res) {
-  const body = await readBody(req);
+/*
+|--------------------------------------------------------------------------
+| OTP
+|--------------------------------------------------------------------------
+*/
 
-  const phone = String(body.phone || "").trim();
+function requestOtp(req, res) {
+  const phone = normalizePhone(req.body?.phone);
 
-  if (!phone) {
-    return sendError(
-      res,
-      400,
-      "رقم الهاتف مطلوب"
-    );
+  if (!/^\+?\d{10,15}$/.test(phone)) {
+    return res.status(400).json({
+      error: "Invalid phone number",
+    });
   }
 
-  users.set(phone, {
+  /*
+   * Demo OTP
+   * في النسخة التجريبية الكود ثابت:
+   * 123456
+   */
+  otpStore.set(phone, {
+    code: "123456",
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  });
+
+  return res.json({
     phone,
-    role: null,
-    otp: "123456",
-    token: null
-  });
-
-  sendJson(res, 200, {
-    success: true,
-    message: "تم تجهيز رمز التحقق",
-    devCode: "123456"
+    expiresInSeconds: 300,
+    devCode: "123456",
   });
 }
 
-async function verifyOtp(req, res) {
-  const body = await readBody(req);
+function verifyOtp(req, res) {
+  const phone = normalizePhone(req.body?.phone);
+  const code = String(req.body?.code || "");
+  const role =
+    String(req.body?.role || "PASSENGER").toUpperCase() === "DRIVER"
+      ? "DRIVER"
+      : "PASSENGER";
 
-  const phone = String(body.phone || "").trim();
-  const code = String(body.code || "").trim();
-  const role = String(body.role || "PASSENGER").trim();
+  const otp = otpStore.get(phone);
 
-  if (!phone) {
-    return sendError(
-      res,
-      400,
-      "رقم الهاتف مطلوب"
-    );
+  if (!otp || otp.expiresAt < Date.now()) {
+    return res.status(401).json({
+      error: "OTP expired or not found",
+    });
   }
 
-  if (code !== "123456") {
-    return sendError(
-      res,
-      401,
-      "رمز التحقق غير صحيح"
-    );
+  if (code !== otp.code) {
+    return res.status(401).json({
+      error: "Invalid OTP",
+    });
   }
+
+  otpStore.delete(phone);
 
   let user = users.get(phone);
 
   if (!user) {
     user = {
+      id: crypto.randomUUID(),
       phone,
-      otp: "123456",
-      token: null
+      role,
+      createdAt: new Date().toISOString(),
     };
+
+    users.set(phone, user);
+  } else {
+    user.role = role;
   }
 
-  user.role = role;
-  user.token =
-    "mishwark-" +
-    role.toLowerCase() +
-    "-" +
-    Date.now();
+  const token = createToken(user);
 
-  users.set(phone, user);
-
-  sendJson(res, 200, {
-    success: true,
-    token: user.token,
-    role: user.role,
-    phone: user.phone
+  return res.json({
+    token,
+    user,
   });
 }
 
-/* =========================
-   إنشاء رحلة
-========================= */
+/*
+ * التطبيق الحالي يستخدم:
+ * /auth/request-otp
+ * /auth/verify-otp
+ *
+ * والـAPK الذي بُني بعنوان /api يستخدم:
+ * /api/auth/request-otp
+ * /api/auth/verify-otp
+ *
+ * لذلك نقبل الاثنين.
+ */
 
-async function createTrip(req, res) {
-  const user = getUserFromToken(req);
+app.post("/auth/request-otp", requestOtp);
+app.post("/api/auth/request-otp", requestOtp);
 
-  if (!user) {
-    return sendError(
-      res,
-      401,
-      "يجب تسجيل الدخول أولاً"
-    );
-  }
+app.post("/auth/verify-otp", verifyOtp);
+app.post("/api/auth/verify-otp", verifyOtp);
 
-  const body = await readBody(req);
+/*
+|--------------------------------------------------------------------------
+| Auth Me
+|--------------------------------------------------------------------------
+*/
 
-  const pickupLat = Number(body.pickupLat);
-  const pickupLng = Number(body.pickupLng);
-  const destinationLat = Number(body.destinationLat);
-  const destinationLng = Number(body.destinationLng);
+function me(req, res) {
+  const user = [...users.values()].find((u) => u.id === req.user.sub);
 
-  if (
-    !Number.isFinite(pickupLat) ||
-    !Number.isFinite(pickupLng) ||
-    !Number.isFinite(destinationLat) ||
-    !Number.isFinite(destinationLng)
-  ) {
-    return sendError(
-      res,
-      400,
-      "بيانات الموقع غير صحيحة"
-    );
-  }
-
-  const id =
-    "MW-" +
-    String(tripCounter++).padStart(4, "0");
-
-  const trip = {
-    id,
-
-    passengerPhone: user.phone,
-
-    pickup: {
-      lat: pickupLat,
-      lng: pickupLng
+  res.json({
+    user: user || {
+      id: req.user.sub,
+      phone: req.user.phone,
+      role: req.user.role,
     },
+  });
+}
 
-    destination: {
-      lat: destinationLat,
-     
+app.get("/auth/me", auth, me);
+app.get("/api/auth/me", auth, me);
+
+/*
+|--------------------------------------------------------------------------
+| Devices
+|--------------------------------------------------------------------------
+*/
+
+function saveDevice(req, res) {
+  return res.json({
+    ok: true,
+  });
+}
+
+app.post("/devices/token", auth, saveDevice);
+app.post("/api/devices/token", auth, saveDevice);
+
+/*
+|--------------------------------------------------------------------------
+| Route Estimate
+|--------------------------------------------------------------------------
+*/
+
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+
+  const p1 = (lat1 * Math.PI) / 180;
+  const p2 = (lat2 * Math.PI) / 180;
+
+  const dp = ((lat2 - lat1) * Math.PI) / 180;
+  const dl = ((lng2 - lng1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dp / 2) ** 2 +
+    Math.cos(p1) *
+      Math.cos(p2) *
+      Math.sin(dl / 2) ** 2;
+
+  return Math.round(
+    2 * R * Math.asin(Math.sqrt(a))
+  );
+}
+
+function estimateRoute(req, res) {
+  const origin = req.body?.origin;
+  const destination = req.body?.destination;
+
+  if (!origin || !destination) {
+    return res.status(400).json({
+      error: "origin and destination are required",
+    });
+  }
+
+  const distance

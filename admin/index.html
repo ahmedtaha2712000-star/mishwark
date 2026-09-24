@@ -255,4 +255,44 @@ async function loadDashboard() {
       `).join("");
 
     document.getElementById("passengersTable").innerHTML =
-      data.pass
+      data.passengers.map(passenger => `
+        <tr>
+          <td>${passenger.name}</td>
+          <td>${passenger.status}</td>
+          <td>${passenger.trips}</td>
+        </tr>
+      `).join("");
+
+    document.getElementById("tripsTable").innerHTML =
+      data.trips.map(trip => `
+        <tr>
+          <td>${trip.id}</td>
+          <td>${trip.from}</td>
+          <td>${trip.to}</td>
+          <td>${trip.price} جنيه</td>
+          <td>${trip.status}</td>
+        </tr>
+      `).join("");
+
+    document.getElementById("loading").style.display = "none";
+
+  } catch (error) {
+
+    document.getElementById("loading").style.display = "none";
+
+    const errorBox =
+      document.getElementById("error");
+
+    errorBox.textContent =
+      "تعذر تحميل البيانات: " + error.message;
+
+    errorBox.style.display = "block";
+  }
+}
+
+loadDashboard();
+
+</script>
+
+</body>
+</html>

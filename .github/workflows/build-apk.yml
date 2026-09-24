@@ -33,32 +33,129 @@ jobs:
           mkdir project
           unzip -q mishwark_release_candidate_1_0-1.zip -d project
 
-      - name: Build passenger APK
-        working-directory: project/apps/passenger_app
-        env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
+      - name: Fix passenger trip screen
         run: |
-          flutter create --platforms=android .
-          flutter pub get
-          flutter build apk --release --dart-define=API_URL="$API_URL"
-          mkdir -p ../../artifacts
-          cp build/app/outputs/flutter-apk/app-release.apk ../../artifacts/mishwark-passenger.apk
+          cat > project/apps/passenger_app/lib/screens/trip_flow_screen.dart <<'EOF'
+          import 'dart:async';
+          import 'package:flutter/material.dart';
+          import '../services/trip_actions_service.dart';
 
-      - name: Build driver APK
-        working-directory: project/apps/driver_app
-        env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
-        run: |
-          flutter create --platforms=android .
-          flutter pub get
-          flutter build apk --release --dart-define=API_URL="$API_URL"
-          mkdir -p ../../artifacts
-          cp build/app/outputs/flutter-apk/app-release.apk ../../artifacts/mishwark-driver.apk
+          class TripFlowScreen extends StatefulWidget {
+            final String tripId;
+            final String token;
+            final String baseUrl;
 
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: mishwark-apks
-          path: project/artifacts/*.apk
-          if-no-files-found: error
-          retention-days: 14
+            const TripFlowScreen({
+              super.key,
+              required this.tripId,
+              required this.token,
+              required this.baseUrl,
+            });
+
+            @override
+            State<TripFlowScreen> createState() => _TripFlowScreenState();
+          }
+
+          class _TripFlowScreenState extends State<TripFlowScreen> {
+            late final TripActionsService api;
+            String status = 'SEARCHING_DRIVER';
+            Timer? timer;
+            Map<String, dynamic>? trip;
+
+            @override
+            void initState() {
+              super.initState();
+              api = TripActionsService(
+                baseUrl: widget.baseUrl,
+                token: widget.token,
+              );
+              load();
+              timer = Timer.periodic(
+                const Duration(seconds: 4),
+                (_) => load(),
+              );
+            }
+
+            Future<void> load() async {
+              try {
+                final x = await api.live(widget.tripId);
+
+                if (!mounted) return;
+
+                setState(() {
+                  trip = x;
+                  status = x['status']?.toString() ?? status;
+                });
+              } catch (_) {}
+            }
+
+            Future<void> act(String action) async {
+              try {
+                final x = await api.action(widget.tripId, action);
+
+                if (!mounted) return;
+
+                setState(() {
+                  status = x['status']?.toString() ?? status;
+                });
+
+                await load();
+              } catch (e) {
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString()),
+                  ),
+                );
+              }
+            }
+
+            @override
+            void dispose() {
+              timer?.cancel();
+              super.dispose();
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Directionality(
+                textDirection: TextDirection.rtl,
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: const Text('رحلتي'),
+                  ),
+                  body: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'الحالة: $status',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall,
+                        ),
+                        const SizedBox(height: 20),
+
+                        if (status == 'REQUESTED' ||
+                            status == 'SEARCHING_DRIVER')
+                          FilledButton(
+                            onPressed: () => act('CANCEL'),
+                            child: const Text('إلغاء الرحلة'),
+                          ),
+
+                        if (status == 'DRIVER_ACCEPTED' ||
+                            status == 'DRIVER_ARRIVING')
+                          const Text('السائق في الطريق إليك'),
+
+                        if (status == 'DRIVER_ARRIVED')
+                          const Text('السائق وصل إلى نقطة الالتقاط'),
+
+                        if (status == 'TRIP_STARTED')
+                          const Text('الرحلة جارية الآن'),
+
+                        if (status == 'TRIP_COMPLETED')
+                          FilledButton(
+                            onPressed: () async {
+                              await api

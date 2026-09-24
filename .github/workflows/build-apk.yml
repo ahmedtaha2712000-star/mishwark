@@ -10,7 +10,7 @@ on:
       api_url:
         description: "Backend API URL"
         required: true
-        default: "https://mishwark-eta.vercel.app"
+        default: "https://mishwark-eta.vercel.app/api"
 
 permissions:
   contents: read
@@ -34,11 +34,11 @@ jobs:
           rm -rf project
           mkdir -p project
           unzip -q mishwark_release_candidate_1_0-1.zip -d project
-          echo "Project extracted"
+          echo "Flutter project extracted successfully"
 
-      - name: Fix passenger screen
+      - name: Fix passenger trip screen
         run: |
-          sed -i 's/]])));}/]]))));}/' project/apps/passenger_app/lib/screens/trip_flow_screen.dart
+          python3 -c "from pathlib import Path; p=Path('project/apps/passenger_app/lib/screens/trip_flow_screen.dart'); s=p.read_text(); s=s.replace('const Text('\''تقييم 5 نجوم'\'')]]);}', 'const Text('\''تقييم 5 نجوم'\'')]);}'); p.write_text(s)"
           echo "Passenger screen checked"
 
       - name: Create passenger Android project
@@ -47,69 +47,17 @@ jobs:
           flutter create --platforms=android .
           flutter pub get
 
-      - name: Add passenger location permissions
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              "project/apps/passenger_app/android/app/src/main/AndroidManifest.xml"
-          )
-
-          text = path.read_text()
-
-          permissions = """
-              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-          """
-
-          if "ACCESS_FINE_LOCATION" not in text:
-              text = text.replace(
-                  "<manifest",
-                  "<manifest",
-                  1
-              )
-
-              marker = ">"
-              index = text.find(marker)
-
-              if index != -1:
-                  text = (
-                      text[:index + 1]
-                      + permissions
-                      + text[index + 1:]
-                  )
-
-          path.write_text(text)
-          print("Passenger location permissions added")
-          PY
-
       - name: Build passenger APK
         working-directory: project/apps/passenger_app
         env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
+          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app/api' }}
         run: |
-          flutter build apk \
-            --release \
-            --dart-define=API_URL="$API_URL"
+          flutter build apk --release --dart-define=API_URL="$API_URL"
 
       - name: Copy passenger APK
         run: |
           mkdir -p artifacts
-          cp \
-            project/apps/passenger_app/build/app/outputs/flutter-apk/app-release.apk \
-            artifacts/mishwark-passenger.apk
+          cp project/apps/passenger_app/build/app/outputs/flutter-apk/app-release.apk artifacts/mishwark-passenger.apk
+          echo "Passenger APK copied"
 
-      - name: Create driver Android project
-        working-directory: project/apps/driver_app
-        run: |
-          flutter create --platforms=android .
-          flutter pub get
-
-      - name: Add driver location permissions
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              "project/apps/
+      - name:

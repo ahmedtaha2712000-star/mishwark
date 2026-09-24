@@ -81,7 +81,45 @@ app.get("/api/health", (req, res) => {
    OTP
 ========================= */
 
-function requestOtp(req, res) {
+function verifyOtp(req, res) {
+  const phone = normalizePhone(req.body?.phone);
+  const code = String(req.body?.code || "");
+
+  const role =
+    String(req.body?.role || "PASSENGER").toUpperCase() === "DRIVER"
+      ? "DRIVER"
+      : "PASSENGER";
+
+  // Demo OTP:
+  // الكود 123456 يعمل مباشرة حتى مع Vercel Serverless
+  if (code !== "123456") {
+    return res.status(401).json({
+      error: "Invalid OTP",
+    });
+  }
+
+  let user = users.get(phone);
+
+  if (!user) {
+    user = {
+      id: crypto.randomUUID(),
+      phone,
+      role,
+      createdAt: new Date().toISOString(),
+    };
+
+    users.set(phone, user);
+  } else {
+    user.role = role;
+  }
+
+  const token = createToken(user);
+
+  return res.json({
+    token,
+    user,
+  });
+} {
   const phone = phoneOf(req.body?.phone);
 
   if (phone.length < 10) {

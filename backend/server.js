@@ -5,20 +5,36 @@ const jwt = require("jsonwebtoken");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json({ limit: "1mb" }));
 
 const JWT_SECRET =
   process.env.JWT_SECRET || "mishwark-demo-secret";
+
+/*
+|--------------------------------------------------------------------------
+| بيانات مؤقتة
+|--------------------------------------------------------------------------
+| ملاحظة: البيانات محفوظة في الذاكرة حاليًا.
+| عند إعادة تشغيل الخادم قد تختفي.
+|--------------------------------------------------------------------------
+*/
 
 const users = new Map();
 const otps = new Map();
 const trips = new Map();
 const drivers = new Map();
 
-/* =========================
-   HELPERS
-========================= */
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
 
 function phoneOf(value) {
   return String(value || "")
@@ -45,11 +61,11 @@ function makeToken(user) {
     {
       sub: user.id,
       phone: user.phone,
-      role: user.role,
+      role: user.role
     },
     JWT_SECRET,
     {
-      expiresIn: "7d",
+      expiresIn: "7d"
     }
   );
 }
@@ -64,10 +80,10 @@ function auth(req, res, next) {
 
     if (!header.startsWith("Bearer ")) {
       return res.status(401).json({
-        error: "Unauthorized",
+        error: "Unauthorized"
       });
     }
 
     const token = header.substring(7);
 
-    req.user = jwt.verify
+    req.user = jwt.verify(token,

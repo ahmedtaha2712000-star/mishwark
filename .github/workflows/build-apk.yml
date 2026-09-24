@@ -10,7 +10,7 @@ on:
       api_url:
         description: "Backend API URL"
         required: true
-        default: "https://mishwark-eta.vercel.app"
+        default: "https://mishwark-eta.vercel.app/api"
 
 permissions:
   contents: read
@@ -50,7 +50,7 @@ jobs:
       - name: Build passenger APK
         working-directory: project/apps/passenger_app
         env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
+          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app/api' }}
         run: |
           flutter build apk --release --dart-define=API_URL="$API_URL"
 
@@ -68,7 +68,7 @@ jobs:
       - name: Build driver APK
         working-directory: project/apps/driver_app
         env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
+          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app/api' }}
         run: |
           flutter build apk --release --dart-define=API_URL="$API_URL"
 

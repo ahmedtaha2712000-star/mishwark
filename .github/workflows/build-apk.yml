@@ -10,7 +10,7 @@ on:
       api_url:
         description: "Backend API URL"
         required: true
-        default: "https://mishwark-eta.vercel.app/api"
+        default: "https://mishwark-eta.vercel.app"
 
 permissions:
   contents: read
@@ -34,58 +34,82 @@ jobs:
           rm -rf project
           mkdir -p project
           unzip -q mishwark_release_candidate_1_0-1.zip -d project
-          echo "Flutter project extracted successfully"
+          echo "Project extracted"
 
       - name: Fix passenger screen
         run: |
           sed -i 's/]])));}/]]))));}/' project/apps/passenger_app/lib/screens/trip_flow_screen.dart
           echo "Passenger screen checked"
 
-      - name: Install passenger dependencies
+      - name: Create passenger Android project
         working-directory: project/apps/passenger_app
         run: |
           flutter create --platforms=android .
           flutter pub get
+
+      - name: Add passenger location permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "project/apps/passenger_app/android/app/src/main/AndroidManifest.xml"
+          )
+
+          text = path.read_text()
+
+          permissions = """
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+          """
+
+          if "ACCESS_FINE_LOCATION" not in text:
+              text = text.replace(
+                  "<manifest",
+                  "<manifest",
+                  1
+              )
+
+              marker = ">"
+              index = text.find(marker)
+
+              if index != -1:
+                  text = (
+                      text[:index + 1]
+                      + permissions
+                      + text[index + 1:]
+                  )
+
+          path.write_text(text)
+          print("Passenger location permissions added")
+          PY
 
       - name: Build passenger APK
         working-directory: project/apps/passenger_app
         env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app/api' }}
+          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app' }}
         run: |
-          flutter build apk --release --dart-define=API_URL="$API_URL"
+          flutter build apk \
+            --release \
+            --dart-define=API_URL="$API_URL"
 
       - name: Copy passenger APK
         run: |
           mkdir -p artifacts
-          cp project/apps/passenger_app/build/app/outputs/flutter-apk/app-release.apk artifacts/mishwark-passenger.apk
+          cp \
+            project/apps/passenger_app/build/app/outputs/flutter-apk/app-release.apk \
+            artifacts/mishwark-passenger.apk
 
-      - name: Install driver dependencies
+      - name: Create driver Android project
         working-directory: project/apps/driver_app
         run: |
           flutter create --platforms=android .
           flutter pub get
 
-      - name: Build driver APK
-        working-directory: project/apps/driver_app
-        env:
-          API_URL: ${{ github.event.inputs.api_url || 'https://mishwark-eta.vercel.app/api' }}
+      - name: Add driver location permissions
         run: |
-          flutter build apk --release --dart-define=API_URL="$API_URL"
+          python3 - <<'PY'
+          from pathlib import Path
 
-      - name: Copy driver APK
-        run: |
-          cp project/apps/driver_app/build/app/outputs/flutter-apk/app-release.apk artifacts/mishwark-driver.apk
-
-      - name: Verify APK files
-        run: |
-          ls -lh artifacts/
-          test -f artifacts/mishwark-passenger.apk
-          test -f artifacts/mishwark-driver.apk
-
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: mishwark-apks
-          path: artifacts/*.apk
-          if-no-files-found: error
-          retention-days: 14
+          path = Path(
+              "project/apps/

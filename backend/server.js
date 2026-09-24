@@ -2,6 +2,10 @@ const http = require("http");
 
 const PORT = process.env.PORT || 3000;
 
+/* =========================
+   بيانات تجريبية
+========================= */
+
 const dashboardData = {
   drivers: [
     {
@@ -35,98 +39,235 @@ const dashboardData = {
       status: "نشط",
       trips: 11
     }
-  ],
-
-  trips: [
-    {
-      id: "DEMO-2026-001",
-      from: "قويسنا",
-      to: "شبين الكوم",
-      price: 95,
-      status: "SEARCHING_DRIVER"
-    },
-    {
-      id: "MW-002",
-      from: "القاهرة",
-      to: "مدينة نصر",
-      price: 85,
-      status: "DRIVER_ARRIVING"
-    }
   ]
 };
 
+/* =========================
+   تخزين مؤقت
+========================= */
+
+const users = new Map();
+const trips = new Map();
+
+let tripCounter = 1;
+
+/* =========================
+   Helpers
+========================= */
+
 function sendJson(res, statusCode, data) {
   res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  res.setHeader(
+    "Content-Type",
+    "application/json; charset=utf-8"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Origin",
+    "*"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET,POST,OPTIONS"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
   res.end(JSON.stringify(data));
 }
 
-const server = http.createServer((req, res) => {
-  if (req.method === "OPTIONS") {
-    res.statusCode = 204;
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.end();
-    return;
-  }
-
-  if (req.url === "/") {
-    sendJson(res, 200, {
-      app: "Mishwark",
-      status: "online"
-    });
-    return;
-  }
-
-  if (req.url === "/api/health") {
-    sendJson(res, 200, {
-      status: "ok",
-      message: "Mishwark Backend يعمل"
-    });
-    return;
-  }
-
-  if (req.url === "/api/admin/dashboard") {
-    sendJson(res, 200, {
-      driversCount: dashboardData.drivers.length,
-      passengersCount: dashboardData.passengers.length,
-      todayTrips: dashboardData.trips.length,
-      activeTrips: dashboardData.trips.filter(
-        (trip) =>
-          trip.status !== "COMPLETED" &&
-          trip.status !== "CANCELLED"
-      ).length,
-      drivers: dashboardData.drivers,
-      passengers: dashboardData.passengers,
-      trips: dashboardData.trips
-    });
-    return;
-  }
-
-  if (req.url === "/api/admin/drivers") {
-    sendJson(res, 200, dashboardData.drivers);
-    return;
-  }
-
-  if (req.url === "/api/admin/passengers") {
-    sendJson(res, 200, dashboardData.passengers);
-    return;
-  }
-
-  if (req.url === "/api/admin/trips") {
-    sendJson(res, 200, dashboardData.trips);
-    return;
-  }
-
-  sendJson(res, 404, {
-    error: "Not Found"
+function sendError(res, statusCode, message) {
+  sendJson(res, statusCode, {
+    error: message
   });
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`Mishwark Backend running on port ${PORT}`);
-});
+function getToken(req) {
+  const auth = req.headers.authorization || "";
+
+  if (!auth.startsWith("Bearer ")) {
+    return null;
+  }
+
+  return auth.substring(7);
+}
+
+function getUserFromToken(req) {
+  const token = getToken(req);
+
+  if (!token) {
+    return null;
+  }
+
+  for (const user of users.values()) {
+    if (user.token === token) {
+      return user;
+    }
+  }
+
+  return null;
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+
+    req.on("data", chunk => {
+      body += chunk;
+    });
+
+    req.on("end", () => {
+      if (!body) {
+        resolve({});
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(body));
+      } catch (e) {
+        reject(new Error("Invalid JSON"));
+      }
+    });
+
+    req.on("error", reject);
+  });
+}
+
+/* =========================
+   Auth
+========================= */
+
+async function requestOtp(req, res) {
+  const body = await readBody(req);
+
+  const phone = String(body.phone || "").trim();
+
+  if (!phone) {
+    return sendError(
+      res,
+      400,
+      "رقم الهاتف مطلوب"
+    );
+  }
+
+  users.set(phone, {
+    phone,
+    role: null,
+    otp: "123456",
+    token: null
+  });
+
+  sendJson(res, 200, {
+    success: true,
+    message: "تم تجهيز رمز التحقق",
+    devCode: "123456"
+  });
+}
+
+async function verifyOtp(req, res) {
+  const body = await readBody(req);
+
+  const phone = String(body.phone || "").trim();
+  const code = String(body.code || "").trim();
+  const role = String(body.role || "PASSENGER").trim();
+
+  if (!phone) {
+    return sendError(
+      res,
+      400,
+      "رقم الهاتف مطلوب"
+    );
+  }
+
+  if (code !== "123456") {
+    return sendError(
+      res,
+      401,
+      "رمز التحقق غير صحيح"
+    );
+  }
+
+  let user = users.get(phone);
+
+  if (!user) {
+    user = {
+      phone,
+      otp: "123456",
+      token: null
+    };
+  }
+
+  user.role = role;
+  user.token =
+    "mishwark-" +
+    role.toLowerCase() +
+    "-" +
+    Date.now();
+
+  users.set(phone, user);
+
+  sendJson(res, 200, {
+    success: true,
+    token: user.token,
+    role: user.role,
+    phone: user.phone
+  });
+}
+
+/* =========================
+   إنشاء رحلة
+========================= */
+
+async function createTrip(req, res) {
+  const user = getUserFromToken(req);
+
+  if (!user) {
+    return sendError(
+      res,
+      401,
+      "يجب تسجيل الدخول أولاً"
+    );
+  }
+
+  const body = await readBody(req);
+
+  const pickupLat = Number(body.pickupLat);
+  const pickupLng = Number(body.pickupLng);
+  const destinationLat = Number(body.destinationLat);
+  const destinationLng = Number(body.destinationLng);
+
+  if (
+    !Number.isFinite(pickupLat) ||
+    !Number.isFinite(pickupLng) ||
+    !Number.isFinite(destinationLat) ||
+    !Number.isFinite(destinationLng)
+  ) {
+    return sendError(
+      res,
+      400,
+      "بيانات الموقع غير صحيحة"
+    );
+  }
+
+  const id =
+    "MW-" +
+    String(tripCounter++).padStart(4, "0");
+
+  const trip = {
+    id,
+
+    passengerPhone: user.phone,
+
+    pickup: {
+      lat: pickupLat,
+      lng: pickupLng
+    },
+
+    destination: {
+      lat: destinationLat,
+     
